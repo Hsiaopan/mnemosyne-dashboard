@@ -557,9 +557,35 @@ class DashboardStore:
                 where = []
                 params: list[Any] = []
                 if q:
-                    where.append("(content REGEXP ? OR id REGEXP ? OR session_id REGEXP ? OR source REGEXP ? OR scope REGEXP ?)")
-                    pattern = self._prefix_pattern(q)
-                    params += [pattern, pattern, pattern, pattern, pattern]
+                    # PERF: the old implementation ran a Python `re.search`
+                    # callback once per field per row (5 × N rows), which made
+                    # search take minutes on a few thousand memories. Replace
+                    # with pure SQLite string matching: zero cross-language
+                    # callbacks, all terms AND-ed together.
+                    #
+                    # Semantics preserved from the old `_prefix_pattern`
+                    # lookahead: each term must start at a word boundary.
+                    # We normalise every non-word char into spaces in SQL, so
+                    # a word start is either the string start or after a space.
+                    # CJK terms have no spaces, so for those we fall back to
+                    # plain substring (the old regex was unreliable there too).
+                    terms = self._search_terms(q) or [q.strip()]
+                    searchable = [c for c in ("content", "id", "session_id", "source", "scope") if c in columns]
+                    blob = " || ' ' || ".join(f"COALESCE({c}, '')" for c in searchable) if searchable else "''"
+                    lowered = f"lower({blob})"
+                    for term in terms:
+                        tl = term.lower()
+                        if any(ord(ch) > 127 for ch in tl):
+                            # CJK / non-ASCII: substring match (no word delimiters)
+                            where.append(f"instr({lowered}, ?) > 0")
+                            params.append(tl)
+                        else:
+                            # ASCII: term must be at start or preceded by a
+                            # non-word char, which we approximate with a space.
+                            where.append(
+                                f"(' ' || {lowered}) LIKE '% ' || ? || '%'"
+                            )
+                            params.append(tl)
                 if source:
                     where.append("source = ?")
                     params.append(source)

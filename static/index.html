@@ -57,6 +57,13 @@
         <span>Theme</span>
         <button id="themeToggle" class="theme-toggle" aria-label="Toggle theme"><span class="theme-icon" id="themeIcon">☾</span><strong class="theme-label" id="themeLabel">Dark</strong></button>
       </div>
+      <div class="lang-switch glass-mini">
+        <span>Language</span>
+        <select id="langSelect" class="lang-select" data-i18n-switch aria-label="Language">
+          <option value="en">English</option>
+          <option value="zh-CN">中文</option>
+        </select>
+      </div>
       </div>
     </aside>
 
@@ -478,6 +485,18 @@
   </div>
 
   <div id="detail" class="drawer hidden"><button id="closeDetail" aria-label="Close detail">×</button><div class="drawer-title">Detail</div><pre id="detailBody"></pre></div>
+  <script src="/static/i18n.js?v=i18n-v1"></script>
   <script src="/static/app.js?v=stream-v2"></script>
+  <script>
+    // i18n engine auto-initialises on DOM ready; kick it off explicitly as well
+    // so the switcher is wired regardless of load order.
+    if (window.I18n) {
+      if (document.readyState === 'loading') {
+        window.addEventListener('DOMContentLoaded', function () { window.I18n.init(); }, { once: true });
+      } else {
+        window.I18n.init();
+      }
+    }
+  </script>
 </body>
 </html>
