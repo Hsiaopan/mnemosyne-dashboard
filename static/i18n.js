@@ -30,6 +30,23 @@
   // corrupt user input. Placeholders/aria-labels carry the UI text safely.
   var ATTRS = ['placeholder', 'aria-label', 'title', 'alt'];
 
+  // Regex rules for templated strings that contain interpolated numbers
+  // and therefore cannot be matched by exact dictionary keys. Each rule:
+  // [RegExp, replacement] applied only after exact lookup misses.
+  var PATTERNS = [
+    [/^Tier (\d) after ([\d,]+) days$/, '第 $1 级 · $2 天后'],
+    [/^Weights: hot (×[\d.]+) · warm (×[\d.]+) · cold (×[\d.]+)$/, '权重：热 $1 · 温 $2 · 冷 $3']
+  ];
+
+  /** Apply regex rules to a trimmed string; return translated or null. */
+  function patternTranslate(trimmed) {
+    for (var i = 0; i < PATTERNS.length; i++) {
+      var m = trimmed.match(PATTERNS[i][0]);
+      if (m) return trimmed.replace(PATTERNS[i][0], PATTERNS[i][1]);
+    }
+    return null;
+  }
+
   var dict = {};          // active locale: { english: translation }
   var locale = DEFAULT_LOCALE;
   var observer = null;
@@ -97,11 +114,17 @@
     // Compare against the remembered source (not the current value) so that
     // re-passes after a locale switch can retranslate the same node.
     var source = (rec && rec.nodeValue != null) ? rec.nodeValue : raw;
-    var hit = dict[source.trim()];
-    if (hit === undefined || hit === source.trim()) return;
+    var s = source.trim();
+    var hit = dict[s];
+    if (hit === undefined || hit === s) {
+      // Fall back to regex rules (templated strings with numbers).
+      if (locale !== 'zh-CN') return;
+      var ph = patternTranslate(s);
+      if (ph === null || ph === s) return;
+      hit = ph;
+    }
     if (!rec) rec = ensureRecord(node);
     if (rec.nodeValue == null) rec.nodeValue = raw;
-    var s = source.trim();
     var lead = source.slice(0, source.indexOf(s));
     var tail = source.slice(source.indexOf(s) + s.length);
     node.nodeValue = lead + hit + tail;
